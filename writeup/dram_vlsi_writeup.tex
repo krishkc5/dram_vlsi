@@ -105,6 +105,12 @@ In this section, we present the baseline DRAM-based 16$\times$4 memory design us
 % Show 1T1C DRAM cell schematic with access NMOS W/L and explicit storage capacitor value.
 % Note chosen CS and its relationship to CBL and sense margin.
 
+For the baseline 1T1C DRAM implementation, the storage capacitance $C_{S}$ and bitline capacitance $C_{\mathrm{BL}}$ were chosen to ensure correct functional behavior while preserving the qualitative characteristics of dynamic charge-based memory operation. Since all transistors in the baseline design use the minimum geometry of 120\,nm/45\,nm, the access device presents a relatively high on-resistance, and the charge-sharing dynamics must be driven primarily by the relative magnitudes of the explicit capacitors. We selected a storage capacitor of $C_{S}=20\,\mathrm{fF}$, representative of a small integrated capacitor in deeply-scaled technologies, and a bitline capacitance of $C_{\mathrm{BL}}=80\,\mathrm{fF}$, approximately four times larger to reflect the fact that real bitlines accumulate diffusion, wiring, and access-transistor capacitances from many cells. With these values, the read perturbation generated during charge sharing is
+\[
+\Delta V = \frac{C_{S}}{C_{S}+C_{\mathrm{BL}}}\left(V_{\mathrm{cell}} - V_{\mathrm{PRE}}\right) \approx 0.2 \times 0.6\,\mathrm{V} = 120\,\mathrm{mV},
+\]
+which produces a clear, measurable deviation from the precharge level while remaining within the small-signal regime expected of DRAM sensing. This $\Delta V$ is sufficiently large to be resolved by the baseline dynamic sense amplifier without requiring aggressive device sizing or timing precision, yet small enough to preserve the qualitative behavior of realistic DRAM columns where $C_{\mathrm{BL}} \gg C_{S}$. These capacitor values also ensure that the RC time constant of the charge-sharing process remains manageable despite the minimum-sized access transistor, enabling full read and restore behavior within relaxed wordline pulse widths during functional verification. As a result, the chosen $C_{S}$ and $C_{\mathrm{BL}}$ provide a robust and physically meaningful baseline environment in which the full read, write, and refresh mechanisms can be validated prior to any optimization of area, power, or delay.
+
 
 
 \newpage
