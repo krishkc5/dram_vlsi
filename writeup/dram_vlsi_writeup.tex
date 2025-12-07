@@ -111,8 +111,6 @@ For the baseline 1T1C DRAM implementation, the storage capacitance $C_{S}$ and b
 \]
 which produces a clear, measurable deviation from the precharge level while remaining within the small-signal regime expected of DRAM sensing. This $\Delta V$ is sufficiently large to be resolved by the baseline dynamic sense amplifier without requiring aggressive device sizing or timing precision, yet small enough to preserve the qualitative behavior of realistic DRAM columns where $C_{\mathrm{BL}} \gg C_{S}$. These capacitor values also ensure that the RC time constant of the charge-sharing process remains manageable despite the minimum-sized access transistor, enabling full read and restore behavior within relaxed wordline pulse widths during functional verification. As a result, the chosen $C_{S}$ and $C_{\mathrm{BL}}$ provide a robust and physically meaningful baseline environment in which the full read, write, and refresh mechanisms can be validated prior to any optimization of area, power, or delay.
 
-
-
 \newpage
 
 \noindent\underline{Precharge Circuit} \\
