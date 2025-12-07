@@ -2,6 +2,7 @@
 \usepackage{amsmath}
 \usepackage{geometry}
 \geometry{margin=1in}
+\usepackage{graphicx} 
 
 \title{16$\times$4 DRAM Project Report}
 \author{Adithya Selvakumar \& Krishna Karthikeya Chemudupati}
@@ -225,14 +226,58 @@ which produces a clear, measurable deviation from the precharge level while rema
 
 \newpage
 
-\subsection{Optimized Design}
+\subsection{Design Strategy}
 
-% This subsection will be populated after baseline functionality is verified and
-% FOM-driven optimizations (area, power, delay) are performed.
-% We will present only those schematics that differ from the baseline and highlight
-% the specific sizing or structural changes that reduce the overall FOM.
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.5\textwidth]{writeup/DRAM_VARIANTS.png}
+  \caption{DRAM bitcell topologies considered in this project: (a) 1T1C, (b) 2T1C, and (c) 3T1C.}
+  \label{fig:dram_cells}
+\end{figure}
 
+\noindent Our starting point for this project was the decision to focus on DRAM rather than SRAM. The basic version of the course project uses a 6T SRAM macro, but we explicitly chose to implement a DRAM style macro in order to engage with charge based storage, refresh, and bitline sensing. Once we committed to DRAM, the main design choice became the bitcell topology. Figure~\ref{fig:dram_cells} compares the three options we considered: a conventional 1T1C cell, a 2T1C cell with separate write and read access devices, and a 3T1C cell that further decouples the read path. All three cells store data as charge on a capacitor tied to ground, but they differ in how that storage node is connected to the wordlines and bitlines.
 
+\vspace{5mm}
+
+\noindent In the 1T1C cell in Figure~\ref{fig:dram_cells}(a), a single access transistor connects the storage capacitor to the bitline BL under control of a single wordline WL. During precharge, BL is driven to approximately $V_{\mathrm{DD}}/2$ and WL is low, so the capacitor is isolated. During an activate, WL is raised, the access device turns on, and the small charge on the capacitor shares with the large bitline capacitance. This produces only a small voltage perturbation around $V_{\mathrm{DD}}/2$ on BL, which must then be detected and amplified by a sensitive sense amplifier before being restored back into the capacitor. The advantages of this topology are density and simplicity: one transistor and one capacitor per bit give the minimum cell area and the most regular layout. The disadvantages, especially in a small on chip macro, are that read and write both directly disturb the storage node, sense margins are tight because the bitline swing is small, and the cell has no protection against read disturb or leakage beyond periodic refresh.
+
+\vspace{5mm}
+
+\noindent The 2T1C cell in Figure~\ref{fig:dram_cells}(b) adds a second access transistor so that reads and writes can use distinct wordlines and bitlines. A typical organization uses a write bitline WBL and write wordline WWL to connect to the storage node SN during writes, and a separate read transistor controlled by a read wordline RWL that connects SN to a read bitline RBL during reads. The storage mechanism is still purely dynamic: the capacitor C at SN is charged or discharged during a write, then slowly leaks; a read connects SN to a precharged RBL so that the small voltage change can be sensed. Compared to 1T1C, the extra device buys flexibility. The write path can be optimized for strong drive and full swing updates of the capacitor, while the read path can be optimized to minimize disturb, for example by only allowing a small amount of charge to flow onto RBL and by timing RWL so that the storage node is not heavily loaded. This relaxes sense amplifier requirements and helps with read stability, at the cost of roughly a doubling of transistor count per bit and a more complex routing of WBL, RBL, WWL, and RWL across the array.
+
+\vspace{5mm}
+
+\noindent The 3T1C cell in Figure~\ref{fig:dram_cells}(c), which we ultimately adopted, extends this separation further by interposing an additional transistor between the storage node and the read bitline. In our implementation, a write transistor controlled by a write wordline WWL connects the write bitline WBL to the capacitor node, allowing robust full swing writes. The capacitor node then drives an internal node $V_{\mathrm{c}}$, which is connected through a dedicated read gate to the read bitline RBL under control of a read wordline RWL. This extra degree of freedom lets us bias and time WWL and RWL independently: we can use an aggressive voltage swing and longer pulse on WWL during writes to fully charge or discharge the capacitor, while using a shorter, carefully shaped RWL pulse that only weakly couples the storage node into the read path. In effect, the 3T1C topology lets us view the read path as a gain stage that samples the stored voltage onto RBL with reduced disturb to the capacitor. The tradeoff is further increased cell area and layout complexity compared to 1T1C and 2T1C, but in exchange we gain significantly better read margin, lower risk of read disturb, and more flexibility in designing the sense amplifier because the effective signal seen at RBL can be larger and more controlled.
+
+\vspace{5mm}
+
+\noindent In the standard version of this project, each team must implement both a baseline memory macro and a significantly optimized version, and then quantify the improvement in a figure of merit that combines area, energy, and performance. Our group instead chose a more challenging DRAM based design with a 3T1C bitcell as the baseline, and, in consultation with the course instructor and TAs, we were not required to also tape out an optimized circuit level variant. In lieu of a second physical implementation, we use the remainder of this subsection to survey a small subset of modern low level DRAM and embedded DRAM research that targets the same underlying metrics as our project: sense margin and access delay at the bitcell and bitline level, dynamic and static energy in precharge and sensing, and area overhead in the cell and peripheral circuits. The goal is to place our simple 3T1C macro within the broader landscape of DRAM bitcell and sense amplifier design, and to understand what kinds of circuit techniques current research uses to push density, energy, and delay beyond what our straightforward layout can achieve.
+
+\newpage
+
+\subsection{Modern DRAM optimizations and literature review}
+
+\noindent In the standard version of this project, each team must implement both a baseline memory macro and a significantly optimized version, and then quantify the improvement in a figure of merit that combines area, energy, and performance. Our group instead chose a more challenging DRAM-based design with a 3T1C bitcell as the baseline, and, in consultation with the course staff, we were not required to also produce and evaluate a second, optimized macro. In lieu of a second physical implementation, this subsection surveys a small, non-representative subset of modern DRAM research that targets the same metrics as our project (effective access latency, dynamic and static energy, and area overhead), but at the level of bitcell topology and very-low-level peripheral circuitry. DRAM optimization is a very broad field, including topics such as 3D integration, new interfaces, security, near-memory compute, and system-level refresh policies; the works selected here focus narrowly on cell-level gain-cell eDRAM design and sense-amplifier and bitline energy reduction, which are the closest analogues to the choices we make in our 3T1C macro.
+
+\vspace{5mm}
+
+\noindent A useful starting point is the survey and taxonomy of gain-cell eDRAM (GC-eDRAM) structures by Teman et al.\ \cite{Teman2012GCReview}. They classify embedded DRAM bitcells that can be fabricated in standard logic CMOS without deep-trench or stacked capacitors, and contrast them with conventional 1T1C cells. In a 1T1C cell the storage capacitance is provided by a dedicated capacitor device, so density is excellent but the process requires additional capacitor steps and the read operation is destructive, forcing immediate restore. In logic-compatible gain cells, the effective storage capacitance is the parasitic capacitance at an internal storage node, written and read through one or more transistors. Teman et al.\ show that 2T and 3T gain cells generally occupy more area than an optimized custom 1T1C cell, but still achieve substantially higher density than compiled 6T SRAM in the same technology, while offering non-destructive read and the ability to decouple write and read ports. The survey also emphasizes how data retention is limited by subthreshold, gate, and junction leakage at the storage node, and how device choices (high-$V_{\text{T}}$ versus regular-$V_{\text{T}}$), biasing of the wordlines during hold, and boosting or undervolting of write lines all trade off retention time against write margin and peripheral complexity.
+
+\vspace{5mm}
+
+\noindent Giterman et al.\ push this line of work into a modern FinFET process with a 1~Mbit 3T gain-cell eDRAM implemented in a 16~nm logic-compatible FinFET technology \cite{Giterman2020GC3T}. Their bitcell uses three transistors with carefully chosen threshold voltages to balance leakage paths to and from the storage node. The implemented 1~Mbit array is fully logic-compatible and provides a bitcell size that is approximately 2$\times$ smaller than a 6T SRAM cell drawn with the same design rules, while keeping the array layout on standard logic tracks \cite{Giterman2020GC3T}. Measurement results demonstrate a data-retention time of about 77~\textmu s under $V_{\mathrm{DD}} = 0.6$~V, which is more than 10$\times$ longer than previously reported GC-eDRAM implementations in 28~nm technologies, and correct operation was demonstrated from $-40^{\circ}\mathrm{C}$ to $125^{\circ}\mathrm{C}$ and down to a minimum supply voltage of roughly 0.45~V \cite{Giterman2020GC3T}. At the macro level, the design uses replica gain cells and self-timed control to adapt the read pulse width to the actual bitline development and employs write drivers that restore the write bitlines after each operation to suppress leakage of stored ``1'' levels. For our 3T1C macro, this paper is a concrete proof that a 3T gain cell can be competitive in density with SRAM in advanced nodes while still achieving tens of microseconds of retention without explicit capacitors, provided that the leakage paths and peripheral timing are co-optimized.
+
+\vspace{5mm}
+
+\noindent Kim and Park take a different approach and explicitly trade additional static circuitry for effectively infinite retention time by turning a 2T gain cell into a pseudo-static embedded DRAM suitable for analog processing-in-memory (PIM) \cite{Kim2022PSGC}. They start from a conventional 2T1C-style gain cell and show, via simulation across technologies from 180~nm to 28~nm, that retention time for a fixed cell structure degrades severely as the channel length shrinks because the storage-node capacitance is reduced and subthreshold leakage grows. They then introduce a pseudo-static gain cell (PS-GC) that combines a 2T storage cell with an active leakage-compensation network that sources or sinks current to hold the storage-node voltage near its ideal level during retention. In a 28~nm CMOS implementation, the resulting bitcell area is reported as 0.79$\times$ that of a compiled 6T SRAM cell and 0.58$\times$ that of an 8T SRAM cell optimized for analog MAC operations, even though the PS-GC uses five transistors, because it avoids a dedicated large metal-oxide-metal capacitor inside the cell \cite{Kim2022PSGC}. Post-layout simulations of a 64$\times$64 macro show that the PS-GC array maintains pseudo-static operation with effectively unlimited retention time over wide process, voltage, and temperature ranges, and that at an operating frequency of 667~MHz it can function from 0.9--1.2~V and $-25^{\circ}\mathrm{C}$ to $85^{\circ}\mathrm{C}$ with both read and write access times below 0.3~ns at 1.2~V and $85^{\circ}\mathrm{C}$ and a static power of about 2.2~nW/bit at 25~\textdegree C \cite{Kim2022PSGC}. Conceptually, this work demonstrates that adding an active leakage-compensation path can stretch retention essentially to pseudo-infinite, turning DRAM into SRAM-like storage without an explicit storage capacitor, at the cost of additional devices and static bias currents. Our 3T1C cell does not implement the full PS-GC assist circuitry, but the same idea of explicitly engineering all leakage paths around the storage node appears in our device choices and biasing schemes for the write wordline.
+
+\vspace{5mm}
+
+\noindent The previous works primarily manipulate the bitcell itself. A complementary axis of low-level DRAM optimization lies in the sensing and precharge circuitry, where every access incurs energy to precharge the bitlines to approximately $V_{\mathrm{DD}}/2$, to sense the small voltage perturbation caused by charge sharing with the cell capacitance, and then to restore both the cell and the bitline. Dai et al.\ analyze this energy flow and propose single-bitline-load sense-amplifier (SBLSA) circuits that reduce bitline and sense-amplifier energy in a DRAM array by avoiding unnecessary full-swing bitline transitions \cite{Dai2023SBLSA}. Building on an earlier single-bitline-write (SBW) scheme, they introduce two SBLSA variants: a redundant-voltage-discharged SBLSA (RVD-SBLSA) that uses an extra discharge path to clamp the target bitline back toward $V_{\mathrm{DD}}/2$ after a read or write, and a bit-aware SBLSA (BA-SBLSA) that conditionally enables single- or dual-bitline loading based on the stored data pattern \cite{Dai2023SBLSA}. Circuit-level simulations in a 65~nm CMOS process show that both variants reduce total read and write energy relative to a conventional differential sense amplifier across data patterns, with the RVD-SBLSA giving the lowest energy and the BA-SBLSA offering a more balanced energy–latency trade-off \cite{Dai2023SBLSA}. Although these designs still assume a standard 1T1C cell, the underlying principle is directly relevant to our work: a significant fraction of per-access energy is tied up in the large bitline capacitances and in the precise sequence of precharge, sense, and restore events, so small changes to the sense-amplifier topology and timing can yield meaningful energy savings even when the bitcell is fixed.
+
+\vspace{5mm}
+
+\noindent Finally, it is useful to place these gain-cell designs in the broader context of contemporary embedded DRAM implementations that still use conventional 1T1C cells. For example, Lin et al.\ report a 14~nm SOI FinFET CMOS technology that integrates 0.0174~\textmu m$^{2}$ 1T1C eDRAM cells alongside logic \cite{Lin2014eDRAM14nm}, and Hamzaoglu et al.\ demonstrate a 1~Gb, multi-gigahertz embedded DRAM macro in a 22~nm tri-gate CMOS technology \cite{Hamzaoglu2014eDRAM1Gb}. These macros exploit aggressive capacitor and trench scaling, deep circuit-level optimization of the sense amplifiers and reference schemes, and carefully tuned refresh to meet high-speed cache requirements. Compared to such state-of-the-art 1T1C macros, gain-cell eDRAM like the 3T structures discussed above gives up some areal density in exchange for logic compatibility (no special capacitor steps), non-destructive reads, and additional ports or assist circuits that can be tailored to specific SoC blocks (for example, analog PIM engines). Our choice of a 3T1C cell in this project follows this trend: we accept more transistors per bitcell than a pure 1T1C array would require, but we gain better read stability, a clean separation of write and read paths, and the ability to tune leakage and timing at the circuit level using only the devices provided by a standard CMOS process. The literature reviewed here shows that, in modern technologies, such gain-cell DRAMs can reach retention times in the tens of microseconds with modest area overhead and can be paired with carefully engineered sense-amplifier and bitline circuits to significantly reduce per-access energy, directly aligning with the area–energy–delay trade-offs that define our project’s figure of merit.
 
 \newpage
 
@@ -361,5 +406,39 @@ which produces a clear, measurable deviation from the precharge level while rema
 \newpage
 
 % FOM, delay, power, area evidence
+
+\begin{thebibliography}{99}
+
+\bibitem{Teman2012GCReview}
+A.~Teman, P.~Meinerzhagen, A.~Burg, and A.~Fish,
+``Review and classification of gain cell eDRAM implementations,''
+in \textit{Proc.\ IEEE 27th Convention of Electrical and Electronics Engineers in Israel (IEEEI)}, Eilat, Israel, Nov.\ 2012, pp.~1--5.
+
+\bibitem{Giterman2020GC3T}
+R.~Giterman, A.~Shalom, A.~Burg, A.~Fish, and A.~Teman,
+``A 1-Mbit fully logic-compatible 3T gain-cell embedded DRAM in 16-nm FinFET,''
+\textit{IEEE Solid-State Circuits Letters}, vol.~3, pp.~110--113, 2020, doi:10.1109/LSSC.2020.3006496.
+
+\bibitem{Kim2022PSGC}
+S.~Kim and J.-E.~Park,
+``Pseudo-static gain cell of embedded DRAM for processing-in-memory in intelligent IoT sensor nodes,''
+\textit{Sensors}, vol.~22, no.~11, Art.~4284, Jun.\ 2022, doi:10.3390/s22114284.
+
+\bibitem{Dai2023SBLSA}
+C.~Dai, Y.~Lu, W.~Lu, Z.~Lin, X.~Wu, and C.~Peng,
+``Low-power single bitline load sense amplifier for DRAM,''
+\textit{Electronics}, vol.~12, no.~19, Art.~4024, Sep.\ 2023, doi:10.3390/electronics12194024.
+
+\bibitem{Lin2014eDRAM14nm}
+C.-H.~Lin \textit{et al.},
+``High-performance 14 nm SOI FinFET CMOS technology with 0.0174 $\mu\text{m}^{2}$ embedded DRAM and 15 levels of Cu metallization,''
+in \textit{Proc.\ IEEE Int.\ Electron Devices Meeting (IEDM)}, San Francisco, CA, USA, Dec.\ 2014, pp.~3.1.1--3.1.4.
+
+\bibitem{Hamzaoglu2014eDRAM1Gb}
+F.~Hamzaoglu \textit{et al.},
+``A 1 Gb 2 GHz embedded DRAM in 22 nm tri-gate CMOS technology,''
+in \textit{IEEE Int.\ Solid-State Circuits Conf.\ (ISSCC) Dig.\ Tech.\ Papers}, San Francisco, CA, USA, Feb.\ 2014, pp.~324--325.
+
+\end{thebibliography}
 
 \end{document}
